@@ -1,0 +1,10 @@
+# ==============================================================================
+# VerityAI - Phase 1 Dependencies
+# Minimal dependencies required for the project foundation and test suite.
+# ==============================================================================
+
+# Web Interface Framework
+streamlit>=1.38.0
+
+# Testing Framework
+pytest>=8.2.0

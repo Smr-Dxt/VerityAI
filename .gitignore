@@ -1,0 +1,83 @@
+# ==============================================================================
+# VerityAI - .gitignore
+# ==============================================================================
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Environment Variables & Secrets (Keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Local Data, SQLite & Runtime Storage (Offline-first local store)
+*.db
+*.sqlite
+*.sqlite3
+data/
+documents/
+uploads/
+storage/
+
+# Downloaded AI Models, Weights, and Checkpoints (Prevent heavy blobs in git)
+models/
+checkpoints/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+
+# User Research Documents (Keep research files private)
+*.pdf
+*.docx
+*.txt
+*.csv
+*.xlsx
+# Explicitly keep requirements files tracked
+!requirements*.txt
+# Allow documentation files inside docs/ if any are tracked later
+!docs/*.md
+
+# Logs and Temporary Files
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+
+# Streamlit Local Runtime
+.streamlit/secrets.toml
+
+# Operating System & Editor Artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
