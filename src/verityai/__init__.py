@@ -21,6 +21,8 @@ from verityai.ingestion import (
     UnsupportedFileTypeError,
     extract_pdf,
     extract_txt,
+    ingest_document,
+    safe_ingest_document,
 )
 
 __all__ = [
@@ -41,4 +43,6 @@ __all__ = [
     "ScannedPDFError",
     "extract_txt",
     "extract_pdf",
+    "ingest_document",
+    "safe_ingest_document",
 ]

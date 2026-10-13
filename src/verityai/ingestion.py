@@ -190,6 +190,12 @@ def extract_txt(
             f"File '{clean_filename}' ({size_mb:.2f} MB) exceeds the maximum allowed size limit of {limit_mb:.1f} MB."
         )
 
+    # Check for binary null bytes (preventing binary files disguised as .txt)
+    if b"\x00" in raw_bytes[:4096]:
+        raise InvalidEncodingError(
+            f"File '{clean_filename}' appears to be a binary file rather than plain text (contains null bytes)."
+        )
+
     # Decode UTF-8 (utf-8-sig transparently strips UTF-8 BOM if present)
     try:
         decoded_text = raw_bytes.decode("utf-8-sig")
@@ -285,6 +291,12 @@ def extract_pdf(
             f"File '{clean_filename}' ({size_mb:.2f} MB) exceeds the maximum allowed size limit of {limit_mb:.1f} MB."
         )
 
+    # Verify that the byte stream contains a PDF header signature
+    if b"%PDF" not in raw_bytes[:1024]:
+        raise CorruptedFileError(
+            f"Failed to parse '{clean_filename}'. The file is corrupted, truncated, or not a valid PDF (missing PDF signature)."
+        )
+
     # Open PDF in memory using PyMuPDF
     doc = None
     try:
@@ -353,3 +365,127 @@ def extract_pdf(
     finally:
         if doc is not None:
             doc.close()
+
+
+# ==============================================================================
+# Unified Document Ingestion
+# ==============================================================================
+
+
+def ingest_document(
+    file_content: Union[bytes, BinaryIO, str],
+    filename: str,
+    max_size_bytes: Optional[int] = None,
+    max_pages: Optional[int] = None,
+) -> DocumentResult:
+    """Dispatches document ingestion to the appropriate parser (.txt or .pdf).
+
+    Validates file extension, sanitizes filename, enforces configurable limits,
+    and returns a typed DocumentResult.
+
+    Args:
+        file_content: Raw bytes, file-like stream, or string content.
+        filename: Name of the uploaded file.
+        max_size_bytes: Optional override for max file size (defaults to AppConfig or 10 MB).
+        max_pages: Optional override for max PDF pages (defaults to AppConfig or 500 pages).
+
+    Returns:
+        DocumentResult with normalized text and page metadata.
+
+    Raises:
+        UnsupportedFileTypeError: If file extension is not .txt or .pdf.
+        FileSizeLimitExceededError: If file exceeds size or page count limits.
+        EmptyDocumentError: If file is empty or contains only whitespace.
+        InvalidEncodingError: If text file is not valid UTF-8.
+        EncryptedPDFError: If PDF is password-protected.
+        ScannedPDFError: If PDF contains no extractable text.
+        CorruptedFileError: If file is malformed or corrupted.
+    """
+    clean_filename = sanitize_filename(filename)
+    lower_name = clean_filename.lower()
+
+    if max_size_bytes is None or max_pages is None:
+        try:
+            from verityai.config import get_config
+
+            cfg = get_config()
+            if max_size_bytes is None:
+                max_size_bytes = cfg.max_file_size_bytes
+            if max_pages is None:
+                max_pages = cfg.max_pdf_pages
+        except Exception:
+            if max_size_bytes is None:
+                max_size_bytes = 10 * 1024 * 1024
+            if max_pages is None:
+                max_pages = 500
+
+    if lower_name.endswith(".txt"):
+        return extract_txt(file_content, filename=clean_filename, max_size_bytes=max_size_bytes)
+    elif lower_name.endswith(".pdf"):
+        return extract_pdf(
+            file_content,
+            filename=clean_filename,
+            max_size_bytes=max_size_bytes,
+            max_pages=max_pages,
+        )
+    else:
+        suffix = Path(clean_filename).suffix or "unsupported extension"
+        raise UnsupportedFileTypeError(
+            f"Unsupported file type '{suffix}' for document '{clean_filename}'. "
+            "VerityAI currently supports plain text (.txt) and PDF (.pdf) documents."
+        )
+
+
+def safe_ingest_document(
+    file_content: Union[bytes, BinaryIO, str],
+    filename: str,
+    max_size_bytes: Optional[int] = None,
+    max_pages: Optional[int] = None,
+) -> DocumentResult:
+    """Safe wrapper for ingest_document that catches all errors and returns a typed error result.
+
+    Ensures that UI and batch processing workflows never crash or display raw tracebacks
+    when users provide malformed, encrypted, or unsupported files.
+
+    Args:
+        file_content: Raw bytes, file-like stream, or string content.
+        filename: Name of the uploaded file.
+        max_size_bytes: Optional override for max file size.
+        max_pages: Optional override for max PDF pages.
+
+    Returns:
+        DocumentResult with status='success' or status='error' and an actionable error_message.
+    """
+    clean_filename = sanitize_filename(filename)
+    lower_name = clean_filename.lower()
+    detected_type = "pdf" if lower_name.endswith(".pdf") else "txt" if lower_name.endswith(".txt") else "unknown"
+
+    try:
+        return ingest_document(
+            file_content=file_content,
+            filename=clean_filename,
+            max_size_bytes=max_size_bytes,
+            max_pages=max_pages,
+        )
+    except IngestionError as exc:
+        return DocumentResult(
+            filename=clean_filename,
+            doc_type=detected_type,
+            total_pages=0,
+            extracted_text="",
+            pages=[],
+            char_count=0,
+            status="error",
+            error_message=str(exc),
+        )
+    except Exception as exc:
+        return DocumentResult(
+            filename=clean_filename,
+            doc_type=detected_type,
+            total_pages=0,
+            extracted_text="",
+            pages=[],
+            char_count=0,
+            status="error",
+            error_message=f"An unexpected error occurred while processing '{clean_filename}': {str(exc)}",
+        )
