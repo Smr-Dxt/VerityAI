@@ -1,11 +1,11 @@
 """
 VerityAI - Offline-First Agentic Research Assistant
-Phase 1: Project Foundation
+Phase 2: Local Document Ingestion
 """
 
 __app_name__ = "VerityAI"
-__version__ = "0.1.0"
-__phase__ = "Phase 1: Project Foundation"
+__version__ = "0.2.0"
+__phase__ = "Phase 2: Local Document Ingestion"
 
 from verityai.config import AppConfig, get_config
 from verityai.ingestion import (

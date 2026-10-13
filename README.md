@@ -6,24 +6,26 @@ The project is built specifically to operate locally and cost-free on consumer h
 
 ---
 
-## 1. Project Status: Phase 1 — Project Foundation
+## 1. Project Status: Phase 2 — Local Document Ingestion
 
-> **Current Phase:** Phase 1 (Project Foundation)  
+> **Current Phase:** Phase 2 (Local Document Ingestion)  
 > **Status:** Operational  
-> **Active Focus:** Clean repository structure, immutable configuration management, automated test harness, and Streamlit research workbench UI.
+> **Active Focus:** Offline document extraction for plain-text (.txt) and PDF (.pdf) files, strict 1-indexed page preservation for future citations, format and file-size guardrails, and interactive Streamlit workbench ingestion.
 
-### What is Available Now (Phase 1)
-- **Modular Project Structure:** Standard `src/` layout separating configuration, tests, and application logic.
-- **Safe Configuration System:** Dataclass-based immutable settings (`src/verityai/config.py`) with environment variable fallback.
-- **Automated Test Harness:** Fast, zero-dependency pytest test suite verifying configuration logic.
-- **Streamlit Research Workbench:** Polished, high-contrast user interface displaying system diagnostics and an honest placeholder research workspace.
-- **Windows-Optimized Environment:** Git and `.gitignore` setup specifically tuned for Windows Python development.
+### What is Available Now (Phase 2)
+- **Modular Project Structure:** Standard `src/` layout separating configuration, ingestion pipelines, test suites, and application UI.
+- **Safe Configuration System:** Dataclass-based immutable settings (`src/verityai/config.py`) with environment variable overrides and configurable ingestion ceilings (`max_file_size_bytes`, `max_pdf_pages`).
+- **Validated Plain-Text (.txt) Extraction:** UTF-8 decoding, UTF-8 BOM auto-stripping, empty/whitespace rejection, line-break normalization, and untrusted filename sanitization.
+- **Page-Aware PDF (.pdf) Extraction:** In-memory byte streaming via PyMuPDF (no disk writes), 1-indexed page boundaries (`PageContent(page_number=...)`) for granular citation attribution, encrypted/password detection, and scanned/image-only PDF detection with clear OCR notices.
+- **Unified Ingestion API:** `ingest_document()` dispatcher and `safe_ingest_document()` boundary returning typed `DocumentResult` objects without uncaught crashes.
+- **Streamlit Ingestion Workspace:** Interactive file upload, document metadata summary card, page-by-page PDF text inspector, text preview containers, actionable error alerts, and live research corpus status.
+- **Automated Test Harness:** 56 passing pytest tests covering unit extraction, limits, encoding, corrupted files, and headless Streamlit `AppTest` execution.
 
 ### What is Planned for Later Phases
-- **Phase 2 (Document Ingestion):** Local parsing of PDF, DOCX, and text documents with metadata extraction.
 - **Phase 3 (Offline Embeddings & Indexing):** Local vector indexing and hybrid search (BM25 + FAISS) sized for 16GB RAM.
 - **Phase 4 (Agentic Verification & Citations):** Multi-hop retrieval, citation grounding, and automated contradiction checks.
 - **Phase 5 (Local Model Evaluation):** Quantized open-source LLM benchmarking (GGUF / Ollama) on RTX 3050 4GB.
+- **Future Document Enhancements:** Local OCR for scanned documents and DOCX parser.
 
 ---
 
@@ -90,25 +92,31 @@ Streamlit will automatically open your default browser at `http://localhost:8501
 
 ```text
 VerityAI/
-├── app.py                  # Streamlit application entrypoint & workbench UI
-├── requirements.txt        # Minimal Phase 1 dependencies (Streamlit, Pytest)
-├── README.md               # Project documentation and getting started guide
-├── .gitignore              # Ignores .venv, cache, local data, models, and temp files
-├── .env.example            # Environment variable template with safe defaults
-├── pytest.ini              # Pytest configuration mapping src directory
+├── app.py                            # Streamlit research workbench UI & document workspace
+├── requirements.txt                  # Phase 2 dependencies (Streamlit, Pytest, PyMuPDF)
+├── README.md                         # Project documentation and getting started guide
+├── .gitignore                        # Ignores .venv, cache, local data, models, and temp files
+├── .env.example                      # Environment variable template with safe defaults
+├── pytest.ini                        # Pytest configuration mapping src directory
 ├── src/
 │   └── verityai/
-│       ├── __init__.py     # Package exports and version metadata
-│       └── config.py       # Immutable dataclass configuration module
+│       ├── __init__.py               # Package exports, version (0.2.0), and phase metadata
+│       ├── config.py                 # Immutable dataclass configuration module with limits
+│       └── ingestion.py              # In-memory TXT/PDF extraction, PageContent, and DocumentResult
 └── tests/
-    └── test_config.py      # Automated pytest tests verifying configuration logic
+    ├── test_config.py                # Automated tests verifying configuration logic
+    ├── test_ingestion_txt.py         # Unit tests for UTF-8, BOM, Unicode, and TXT edge cases
+    ├── test_ingestion_pdf.py         # Unit tests for synthetic PDFs, pages, and encryption
+    ├── test_ingestion_validation.py  # Edge case and format validation tests
+    └── test_ui_integration.py        # Streamlit AppTest headless integration tests
 ```
 
 ### File Responsibilities
-- `app.py`: Launches the interactive user interface, injects high-contrast research styling, and renders system diagnostics and placeholder empty states.
-- `src/verityai/config.py`: Encapsulates application settings in an immutable `AppConfig` dataclass and parses environment overrides safely.
-- `tests/test_config.py`: Verifies configuration defaults, environment variable overrides, immutability, and boolean helpers.
-- `.gitignore`: Prevents heavy AI model checkpoints (`.gguf`, `.safetensors`), private research documents (`.pdf`, `.docx`), and virtual environments from accidentally being committed.
+- `app.py`: Streamlit entrypoint; renders research workspace, interactive document uploader, metadata summary cards, and page-by-page text inspector.
+- `src/verityai/config.py`: Encapsulates application settings and configurable limits (`max_file_size_bytes=10MB`, `max_pdf_pages=500`).
+- `src/verityai/ingestion.py`: Local document ingestion engine with `PageContent`, `DocumentResult`, `extract_txt`, `extract_pdf`, and `safe_ingest_document`.
+- `tests/`: 56 automated pytest tests verifying configuration, extraction, limits, and headless UI workflows.
+- `.gitignore`: Prevents heavy AI model checkpoints, private research documents, and virtual environments from accidentally being committed.
 
 ---
 
