@@ -14,6 +14,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from verityai.config import get_config
+from verityai.ingestion import DocumentResult, safe_ingest_document
 
 
 def inject_custom_styles() -> None:
@@ -222,22 +223,39 @@ def render_research_workspace(config) -> None:
     # Document Staging / Corpus Status
     st.markdown('<div class="section-header">Document Corpus</div>', unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        <div class="empty-workspace-box">
-            <div class="empty-workspace-title">No Documents Ingested</div>
-            <div class="empty-workspace-desc">
-                Your research repository is currently empty. Ingest technical papers, reports, or
-                documentation to build a private evidence repository for verified, citation-backed answers.
+    active_doc = st.session_state.get("active_document")
+    if active_doc is not None and active_doc.status == "success":
+        st.markdown(
+            f"""
+            <div class="verity-card">
+                <div class="verity-card-header">
+                    <span>Active Ingested Document</span>
+                    <span class="verity-badge"><span class="verity-badge-dot"></span> Ingested</span>
+                </div>
+                <div class="spec-row"><span class="spec-label">Document:</span><span class="spec-value">{active_doc.filename}</span></div>
+                <div class="spec-row"><span class="spec-label">Type:</span><span class="spec-value">{active_doc.doc_type.upper()} ({active_doc.total_pages} page{'s' if active_doc.total_pages != 1 else ''})</span></div>
+                <div class="spec-row"><span class="spec-label">Characters:</span><span class="spec-value">{active_doc.char_count:,}</span></div>
             </div>
-            <span class="verity-badge">
-                <span class="verity-badge-dot"></span>
-                Local Ingestion Engine Awaiting Files
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div class="empty-workspace-box">
+                <div class="empty-workspace-title">No Documents Ingested</div>
+                <div class="empty-workspace-desc">
+                    Your research repository is currently empty. Ingest technical papers or plain-text
+                    documentation in the Documents tab to inspect text and verify page metadata.
+                </div>
+                <span class="verity-badge">
+                    <span class="verity-badge-dot"></span>
+                    Local Ingestion Engine Awaiting Files
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Evidence Query Area
     st.markdown('<div class="section-header">Evidence Query</div>', unsafe_allow_html=True)
@@ -246,9 +264,9 @@ def render_research_workspace(config) -> None:
         "Enter a research question across your documents:",
         placeholder="e.g., What are the documented tradeoffs between quantized attention heads?",
         disabled=True,
-        help="Query execution requires at least one ingested document in the corpus.",
+        help="Evidence retrieval and query execution will be enabled in Phase 3 (Local Vector Indexing).",
     )
-    st.caption("Query execution is enabled once documents have been added to the local corpus.")
+    st.caption("Evidence query execution is planned for Phase 3 once vector indexing is active.")
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
@@ -300,40 +318,146 @@ def render_research_workspace(config) -> None:
         )
 
 
-def render_documents_view() -> None:
-    """Renders the document management view."""
+def render_documents_view(config) -> None:
+    """Renders the document management and local ingestion workspace."""
     st.markdown(
         """
         <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #1E293B;">
             <h1 class="verity-brand-title">Documents</h1>
-            <p class="verity-tagline">Manage local research papers, technical documentation, and evidence sources.</p>
+            <p class="verity-tagline">Locally ingest, validate, and inspect research documents (.txt, .pdf).</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """
-        <div class="empty-workspace-box">
-            <div class="empty-workspace-title">Document Repository Empty</div>
-            <div class="empty-workspace-desc">
-                No research files have been added to the local catalog. Document parsing tools for local
-                PDF, DOCX, and text files will be configured here.
-            </div>
-            <span class="verity-badge">Local Storage: ./data</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    max_mb = config.max_file_size_bytes // (1024 * 1024)
+
+    # Document Upload Control
+    st.markdown('<div class="section-header">Document Ingestion</div>', unsafe_allow_html=True)
+    st.caption(f"Supported formats: Plain Text (.txt), PDF (.pdf) | File limit: {max_mb} MB, up to {config.max_pdf_pages} pages")
+
+    uploaded_file = st.file_uploader(
+        "Upload a technical paper or text file for local ingestion:",
+        type=["txt", "pdf"],
+        key="doc_uploader",
+        help=f"Uploads are processed purely in-memory up to {max_mb} MB.",
     )
+
+    # Handle Upload Processing
+    if uploaded_file is not None:
+        last_name = st.session_state.get("active_doc_filename")
+        if last_name != uploaded_file.name:
+            file_bytes = uploaded_file.getvalue()
+            doc_result = safe_ingest_document(
+                file_content=file_bytes,
+                filename=uploaded_file.name,
+                max_size_bytes=config.max_file_size_bytes,
+                max_pages=config.max_pdf_pages,
+            )
+            st.session_state["active_document"] = doc_result
+            st.session_state["active_doc_filename"] = uploaded_file.name
+
+    # Render Current Ingestion State
+    active_doc: DocumentResult | None = st.session_state.get("active_document")
+
+    if active_doc is not None:
+        if active_doc.status == "error":
+            st.error(f"Ingestion Failure: {active_doc.error_message}")
+            if st.button("Clear and Try Another File", key="btn_clear_error"):
+                st.session_state["active_document"] = None
+                st.session_state["active_doc_filename"] = None
+                st.rerun()
+        else:
+            st.success(f"Successfully extracted content from '{active_doc.filename}' locally.")
+
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.markdown(
+                    f"""
+                    <div class="verity-card">
+                        <div class="verity-card-header">
+                            <span>Document Summary</span>
+                            <span class="verity-badge"><span class="verity-badge-dot"></span> Ingested</span>
+                        </div>
+                        <div class="spec-row"><span class="spec-label">Filename:</span><span class="spec-value">{active_doc.filename}</span></div>
+                        <div class="spec-row"><span class="spec-label">Format:</span><span class="spec-value">{active_doc.doc_type.upper()}</span></div>
+                        <div class="spec-row"><span class="spec-label">Pages:</span><span class="spec-value">{active_doc.total_pages}</span></div>
+                        <div class="spec-row"><span class="spec-label">Total Characters:</span><span class="spec-value">{active_doc.char_count:,}</span></div>
+                        <div class="spec-row"><span class="spec-label">Storage:</span><span class="spec-value">In-Memory (Offline)</span></div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with col2:
+                st.markdown(
+                    """
+                    <div class="verity-card">
+                        <div class="verity-card-header"><span>Pipeline Status</span></div>
+                        <div class="verity-card-body">
+                            Document text and page boundaries are held in memory.
+                            Embedding generation and vector indexing will be available in Phase 3.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button("Reset / Ingest New Document", key="btn_reset_doc"):
+                    st.session_state["active_document"] = None
+                    st.session_state["active_doc_filename"] = None
+                    st.rerun()
+
+            # Extracted Text Inspector
+            st.markdown('<div class="section-header">Document Content Inspector</div>', unsafe_allow_html=True)
+
+            if active_doc.doc_type == "pdf" and active_doc.total_pages > 1:
+                page_labels = [f"Page {p.page_number} ({p.char_count:,} chars)" for p in active_doc.pages]
+                page_idx = st.selectbox(
+                    "Select page to inspect:",
+                    options=list(range(len(active_doc.pages))),
+                    format_func=lambda i: page_labels[i],
+                    key="pdf_page_select",
+                )
+                chosen_page = active_doc.pages[page_idx]
+                st.caption(f"Page {chosen_page.page_number} of {active_doc.total_pages} — {chosen_page.char_count:,} characters")
+                st.text_area(
+                    label=f"Page {chosen_page.page_number} Content",
+                    value=chosen_page.text,
+                    height=320,
+                    disabled=True,
+                    label_visibility="collapsed",
+                )
+            else:
+                st.caption(f"Full Extracted Text — {active_doc.char_count:,} characters")
+                st.text_area(
+                    label="Extracted Text Content",
+                    value=active_doc.extracted_text,
+                    height=320,
+                    disabled=True,
+                    label_visibility="collapsed",
+                )
+    else:
+        st.markdown(
+            """
+            <div class="empty-workspace-box">
+                <div class="empty-workspace-title">No Document Loaded</div>
+                <div class="empty-workspace-desc">
+                    Upload a plain-text (.txt) research note or PDF (.pdf) technical paper above to extract text,
+                    inspect page boundaries, and verify document integrity.
+                </div>
+                <span class="verity-badge">Ingestion Engine Ready</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown('<div class="section-header">Supported Document Formats</div>', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="verity-card">
             <div class="verity-card-body">
-                The local ingestion pipeline is designed for <strong>PDF</strong> research papers, <strong>DOCX</strong> reports,
-                and <strong>Markdown / Plain Text</strong> files. Extracted text will be indexed into deterministic local chunks
-                for granular citation attribution.
+                Phase 2 supports <strong>PDF (.pdf)</strong> documents with full page-boundary preservation and
+                <strong>Plain Text (.txt)</strong> documents. Scanned image-only PDFs and DOCX files are planned
+                for future phases. All text extraction is executed locally on-device without cloud transmission.
             </div>
         </div>
         """,
@@ -475,7 +599,7 @@ def main() -> None:
     if selected_view == "Research Workspace":
         render_research_workspace(config)
     elif selected_view == "Documents":
-        render_documents_view()
+        render_documents_view(config)
     elif selected_view == "Verification":
         render_verification_view()
     elif selected_view == "Model Evaluation":
