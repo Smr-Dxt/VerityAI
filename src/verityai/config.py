@@ -44,6 +44,8 @@ class AppConfig:
     project_root: Path = Path(__file__).resolve().parent.parent.parent
     data_dir: Path = Path(__file__).resolve().parent.parent.parent / "data"
     models_dir: Path = Path(__file__).resolve().parent.parent.parent / "models"
+    max_file_size_bytes: int = 10 * 1024 * 1024
+    max_pdf_pages: int = 500
 
     def to_display_dict(self) -> Dict[str, Any]:
         """Returns a sanitized dictionary of settings suitable for UI display."""
@@ -90,6 +92,18 @@ def get_config() -> AppConfig:
 
     log_level = os.getenv("VERITY_LOG_LEVEL", "INFO").upper()
 
+    raw_max_size_mb = os.getenv("VERITY_MAX_FILE_SIZE_MB", "10")
+    try:
+        max_file_size_bytes = int(raw_max_size_mb) * 1024 * 1024
+    except ValueError:
+        max_file_size_bytes = 10 * 1024 * 1024
+
+    raw_max_pages = os.getenv("VERITY_MAX_PDF_PAGES", "500")
+    try:
+        max_pdf_pages = int(raw_max_pages)
+    except ValueError:
+        max_pdf_pages = 500
+
     return AppConfig(
         app_name=app_name,
         version="0.1.0",
@@ -103,4 +117,6 @@ def get_config() -> AppConfig:
         project_root=project_root,
         data_dir=project_root / "data",
         models_dir=project_root / "models",
+        max_file_size_bytes=max_file_size_bytes,
+        max_pdf_pages=max_pdf_pages,
     )
