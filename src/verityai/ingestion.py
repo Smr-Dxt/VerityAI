@@ -9,7 +9,8 @@ extracts text cleanly, and structures the output for citation grounding in later
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import BinaryIO, List, Optional, Union
+import pymupdf
 
 
 # ==============================================================================
@@ -219,3 +220,136 @@ def extract_txt(
         char_count=total_chars,
         status="success",
     )
+
+
+# ==============================================================================
+# PDF Extraction
+# ==============================================================================
+
+
+def extract_pdf(
+    file_content: Union[bytes, BinaryIO],
+    filename: str = "document.pdf",
+    max_size_bytes: int = 10 * 1024 * 1024,
+    max_pages: int = 500,
+) -> DocumentResult:
+    """Extracts page-by-page text and metadata from an in-memory PDF document.
+
+    Args:
+        file_content: Raw bytes or file-like binary stream of the uploaded PDF file.
+        filename: Name of the uploaded file (must end in .pdf).
+        max_size_bytes: Maximum allowed file size in bytes (default 10 MB).
+        max_pages: Maximum allowed page count (default 500 pages).
+
+    Returns:
+        DocumentResult with page-aware text, total pages, and 1-indexed PageContent items.
+
+    Raises:
+        TypeError: If file_content is not bytes or a file-like binary stream.
+        UnsupportedFileTypeError: If filename does not end in .pdf.
+        FileSizeLimitExceededError: If file size exceeds max_size_bytes or pages exceed max_pages.
+        EmptyDocumentError: If file is 0 bytes or PDF contains 0 pages.
+        EncryptedPDFError: If PDF is password-protected or requires a password.
+        ScannedPDFError: If PDF contains no extractable text across all pages.
+        CorruptedFileError: If file is malformed, truncated, or not a valid PDF.
+    """
+    clean_filename = sanitize_filename(filename)
+
+    # Validate file extension
+    if not clean_filename.lower().endswith(".pdf"):
+        raise UnsupportedFileTypeError(
+            f"Unsupported file format for '{clean_filename}'. The PDF extractor only accepts .pdf files."
+        )
+
+    # Read binary content
+    if hasattr(file_content, "read"):
+        raw_bytes = file_content.read()
+    elif isinstance(file_content, bytes):
+        raw_bytes = file_content
+    else:
+        raise TypeError(
+            f"Expected bytes or file-like object for file_content, got {type(file_content).__name__}"
+        )
+
+    # Check for empty file before parsing
+    if len(raw_bytes) == 0:
+        raise EmptyDocumentError(
+            f"The file '{clean_filename}' is empty (0 bytes). Please upload a valid PDF document."
+        )
+
+    # Check file size limit
+    if len(raw_bytes) > max_size_bytes:
+        size_mb = len(raw_bytes) / (1024 * 1024)
+        limit_mb = max_size_bytes / (1024 * 1024)
+        raise FileSizeLimitExceededError(
+            f"File '{clean_filename}' ({size_mb:.2f} MB) exceeds the maximum allowed size limit of {limit_mb:.1f} MB."
+        )
+
+    # Open PDF in memory using PyMuPDF
+    doc = None
+    try:
+        try:
+            doc = pymupdf.open(stream=raw_bytes, filetype="pdf")
+        except Exception as exc:
+            raise CorruptedFileError(
+                f"Failed to parse '{clean_filename}'. The file is corrupted, truncated, or not a valid PDF."
+            ) from exc
+
+        # Check for encrypted / password-protected PDF
+        if doc.needs_pass or doc.is_encrypted:
+            raise EncryptedPDFError(
+                f"The PDF '{clean_filename}' is password-protected. "
+                "Please provide an unencrypted document for research ingestion."
+            )
+
+        # Check for 0-page document
+        if doc.page_count == 0:
+            raise EmptyDocumentError(
+                f"The PDF '{clean_filename}' contains 0 pages."
+            )
+
+        # Check page count limit
+        if doc.page_count > max_pages:
+            raise FileSizeLimitExceededError(
+                f"PDF '{clean_filename}' has {doc.page_count} pages, which exceeds the maximum allowed limit of {max_pages} pages."
+            )
+
+        # Extract text page by page (1-indexed for citation grounding)
+        pages: List[PageContent] = []
+        for page_idx in range(doc.page_count):
+            page_obj = doc.load_page(page_idx)
+            page_text = page_obj.get_text("text")
+            normalized_page_text = page_text.replace("\r\n", "\n").replace("\r", "\n")
+            page_char_count = len(normalized_page_text)
+            pages.append(
+                PageContent(
+                    page_number=page_idx + 1,
+                    text=normalized_page_text,
+                    char_count=page_char_count,
+                )
+            )
+
+        # Concatenate extracted text
+        full_text = "\n\n".join(p.text for p in pages)
+        total_chars = sum(p.char_count for p in pages)
+
+        # Detect scanned PDFs (no extractable text across all pages)
+        if not full_text.strip():
+            raise ScannedPDFError(
+                f"The PDF '{clean_filename}' contains no extractable text across all {doc.page_count} pages. "
+                "It may be a scanned document or consist entirely of images. "
+                "Local OCR will be supported in a future phase."
+            )
+
+        return DocumentResult(
+            filename=clean_filename,
+            doc_type="pdf",
+            total_pages=doc.page_count,
+            extracted_text=full_text,
+            pages=pages,
+            char_count=total_chars,
+            status="success",
+        )
+    finally:
+        if doc is not None:
+            doc.close()

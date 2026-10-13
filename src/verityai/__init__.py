@@ -9,13 +9,17 @@ __phase__ = "Phase 1: Project Foundation"
 
 from verityai.config import AppConfig, get_config
 from verityai.ingestion import (
+    CorruptedFileError,
     DocumentResult,
     EmptyDocumentError,
+    EncryptedPDFError,
     FileSizeLimitExceededError,
     IngestionError,
     InvalidEncodingError,
     PageContent,
+    ScannedPDFError,
     UnsupportedFileTypeError,
+    extract_pdf,
     extract_txt,
 )
 
@@ -32,5 +36,9 @@ __all__ = [
     "FileSizeLimitExceededError",
     "EmptyDocumentError",
     "InvalidEncodingError",
+    "CorruptedFileError",
+    "EncryptedPDFError",
+    "ScannedPDFError",
     "extract_txt",
+    "extract_pdf",
 ]
