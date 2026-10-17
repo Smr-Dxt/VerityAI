@@ -16,6 +16,7 @@ from verityai.chunking import (
 )
 from verityai.config import AppConfig, get_config
 from verityai.embeddings import BaseEmbedder, LocalEmbedder, MockEmbedder
+from verityai.retrieval_hybrid import BM25Retriever, HybridRetrievalResult, HybridRetriever
 from verityai.retrieval_semantic import FAISSRetriever, RetrievalResult
 from verityai.ingestion import (
     CorruptedFileError,
@@ -52,6 +53,9 @@ __all__ = [
     "MockEmbedder",
     "FAISSRetriever",
     "RetrievalResult",
+    "BM25Retriever",
+    "HybridRetriever",
+    "HybridRetrievalResult",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",

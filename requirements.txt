@@ -23,3 +23,7 @@ sentence-transformers>=3.0.0
 # Vector Similarity Search (In-memory dense indexing)
 faiss-cpu>=1.8.0
 
+# Keyword Retrieval (In-memory BM25 lexical ranking)
+rank-bm25>=0.2.2
+
+
