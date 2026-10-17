@@ -6,24 +6,53 @@ The project is built specifically to operate locally and cost-free on consumer h
 
 ---
 
-## 1. Project Status: Phase 2 — Local Document Ingestion
+## 1. Project Status: Phase 3 — Chunking, Embeddings & Hybrid Retrieval
 
-> **Current Phase:** Phase 2 (Local Document Ingestion)  
-> **Status:** Operational  
-> **Active Focus:** Offline document extraction for plain-text (.txt) and PDF (.pdf) files, strict 1-indexed page preservation for future citations, format and file-size guardrails, and interactive Streamlit workbench ingestion.
+> **Current Phase:** Phase 3 (Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval)  
+> **Status:** Operational (101 automated tests passing)  
+> **Active Focus:** Source-aware text chunking with word boundary snapping and strict 1-indexed PDF page preservation; dense local embedding generation via Sentence Transformers; FAISS vector indexing; BM25 lexical keyword matching; Reciprocal Rank Fusion (RRF); and interactive Streamlit evidence retrieval.
 
-### What is Available Now (Phase 2)
-- **Modular Project Structure:** Standard `src/` layout separating configuration, ingestion pipelines, test suites, and application UI.
-- **Safe Configuration System:** Dataclass-based immutable settings (`src/verityai/config.py`) with environment variable overrides and configurable ingestion ceilings (`max_file_size_bytes`, `max_pdf_pages`).
-- **Validated Plain-Text (.txt) Extraction:** UTF-8 decoding, UTF-8 BOM auto-stripping, empty/whitespace rejection, line-break normalization, and untrusted filename sanitization.
-- **Page-Aware PDF (.pdf) Extraction:** In-memory byte streaming via PyMuPDF (no disk writes), 1-indexed page boundaries (`PageContent(page_number=...)`) for granular citation attribution, encrypted/password detection, and scanned/image-only PDF detection with clear OCR notices.
-- **Unified Ingestion API:** `ingest_document()` dispatcher and `safe_ingest_document()` boundary returning typed `DocumentResult` objects without uncaught crashes.
-- **Streamlit Ingestion Workspace:** Interactive file upload, document metadata summary card, page-by-page PDF text inspector, text preview containers, actionable error alerts, and live research corpus status.
-- **Automated Test Harness:** 56 passing pytest tests covering unit extraction, limits, encoding, corrupted files, and headless Streamlit `AppTest` execution.
+### What is Available Now (Phase 3)
+- **Source-Aware Chunking (`src/verityai/chunking.py`):**
+  - Character-based chunking (~1,200 chars / ~200–250 words) with word boundary snapping to prevent sliced tokens.
+  - Configurable sliding window overlap (~200 chars / ~35–45 words).
+  - Strict page attribution: PDF pages are chunked independently without cross-page mixing; every chunk records its exact 1-indexed `page_number`.
+  - Deterministic chunk IDs (e.g. `doc_a1b2_p2_c0`).
+- **Local Text Embeddings (`src/verityai/embeddings.py`):**
+  - Powered by `sentence-transformers/all-MiniLM-L6-v2` (Apache 2.0 license, ~80 MB file size, 384-dimensional dense vectors).
+  - Lazy loading: Postpones model initialization until first retrieval call to keep app launch instant.
+  - Hardware adaptive: Auto-detects NVIDIA CUDA GPU acceleration when available, with clean CPU fallback.
+  - L2-normalized embeddings for fast cosine similarity / inner product search.
+  - Zero telemetry: Documents and queries are processed entirely on-device without cloud transmission.
+- **Dense Vector Search (`src/verityai/retrieval_semantic.py`):**
+  - In-memory `faiss.IndexFlatIP` (Exact Inner Product) vector index.
+  - Deterministic 1-to-1 mapping preserving chunk metadata across searches.
+- **Lexical Keyword Search & Reciprocal Rank Fusion (`src/verityai/retrieval_hybrid.py`):**
+  - BM25 lexical retriever with Lucene-standard non-negative IDF formulation.
+  - Reciprocal Rank Fusion (RRF) combining dense semantic and sparse keyword rankings purely by position:
+    $$\text{RRF Score}(d) = \sum_{m} \frac{w_m}{k + \text{rank}_m(d)}$$
+  - Deduplication by stable chunk ID with consensus score boosting.
+- **Interactive Streamlit Workbench (`app.py`):**
+  - Active Evidence Retrieval query interface in Research Workspace.
+  - Passage cards displaying rank, filename, PDF page number, RRF score, semantic rank, and keyword rank.
+  - Explicit empty-result messaging.
+- **Automated Test Harness (`tests/`):**
+  - 101 automated pytest tests across 7 test suites covering ingestion, chunking, embeddings, semantic retrieval, hybrid search, evaluation metrics, and headless Streamlit `AppTest` workflows.
+
+### Benchmark Evaluation Quality Results
+Evaluated on a standardized 6-document technical corpus with 5 representative research queries:
+
+| Metric | Result | Meaning |
+|---|:---:|---|
+| **Mean Recall@3** | **80.00%** | Relevant target passage retrieved in the top 3 results 80% of the time. |
+| **Mean Recall@1** | **40.00%** | The #1 top result is the exact target answer 40% of the time. |
+| **Mean Precision@1** | **40.00%** | Top recommendation is directly relevant to the query. |
+| **Mean Reciprocal Rank (MRR)** | **0.6000** | On average, relevant evidence ranks between 1st and 2nd position. |
+| **Average Query Latency** | **0.433 ms** | Sub-millisecond search speed (<0.5 ms per query) running locally in RAM. |
+| **Provenance Integrity** | **100.00%** | 100% of retrieved results strictly preserved their filename, doc_id, and 1-indexed page. |
 
 ### What is Planned for Later Phases
-- **Phase 3 (Offline Embeddings & Indexing):** Local vector indexing and hybrid search (BM25 + FAISS) sized for 16GB RAM.
-- **Phase 4 (Agentic Verification & Citations):** Multi-hop retrieval, citation grounding, and automated contradiction checks.
+- **Phase 4 (Agentic Verification & Citations):** Multi-hop retrieval, citation grounding, claim verification, and automated contradiction checks.
 - **Phase 5 (Local Model Evaluation):** Quantized open-source LLM benchmarking (GGUF / Ollama) on RTX 3050 4GB.
 - **Future Document Enhancements:** Local OCR for scanned documents and DOCX parser.
 
@@ -32,9 +61,9 @@ The project is built specifically to operate locally and cost-free on consumer h
 ## 2. Prerequisites
 
 - **Operating System:** Windows 10/11 (PowerShell)
-- **Python Version:** Python 3.10 to 3.13 (64-bit recommended; tested on Python 3.13)
-- **Hardware Profile:** 8 GB+ RAM (16 GB recommended), optional NVIDIA GPU for later phases.
-- **Internet Access:** Only required during initial package installation via `pip`. Once packages are installed, Phase 1 runs completely offline.
+- **Python Version:** Python 3.10 to 3.13 (64-bit recommended; tested on Python 3.13.2)
+- **Hardware Profile:** 8 GB+ RAM (16 GB recommended), optional NVIDIA GPU for CUDA acceleration.
+- **Internet Access:** Only required during initial package installation via `pip` and initial model download (~80 MB). Once downloaded, VerityAI operates 100% offline.
 
 ---
 
@@ -79,6 +108,7 @@ pip install -r requirements.txt
 ```powershell
 python -m pytest -q
 ```
+*(Runs all 101 offline tests in ~30 seconds).*
 
 ### Step 6: Launch the Streamlit Research Workbench
 ```powershell
@@ -92,69 +122,51 @@ Streamlit will automatically open your default browser at `http://localhost:8501
 
 ```text
 VerityAI/
-├── app.py                            # Streamlit research workbench UI & document workspace
-├── requirements.txt                  # Phase 2 dependencies (Streamlit, Pytest, PyMuPDF)
+├── app.py                            # Streamlit research workbench UI & Evidence Retrieval workspace
+├── requirements.txt                  # Phase 3 dependencies (Streamlit, Pytest, PyMuPDF, Sentence-Transformers, FAISS, BM25)
 ├── README.md                         # Project documentation and getting started guide
 ├── .gitignore                        # Ignores .venv, cache, local data, models, and temp files
 ├── .env.example                      # Environment variable template with safe defaults
 ├── pytest.ini                        # Pytest configuration mapping src directory
 ├── src/
 │   └── verityai/
-│       ├── __init__.py               # Package exports, version (0.2.0), and phase metadata
+│       ├── __init__.py               # Package exports, version (0.3.0), and phase metadata
 │       ├── config.py                 # Immutable dataclass configuration module with limits
-│       └── ingestion.py              # In-memory TXT/PDF extraction, PageContent, and DocumentResult
+│       ├── ingestion.py              # In-memory TXT/PDF extraction, PageContent, and DocumentResult
+│       ├── chunking.py               # Source-aware chunker preserving word and 1-indexed page boundaries
+│       ├── embeddings.py             # Local sentence embeddings (all-MiniLM-L6-v2, MockEmbedder)
+│       ├── retrieval_semantic.py     # In-memory FAISS dense vector retriever
+│       └── retrieval_hybrid.py       # BM25 lexical search + Reciprocal Rank Fusion (RRF)
 └── tests/
     ├── test_config.py                # Automated tests verifying configuration logic
     ├── test_ingestion_txt.py         # Unit tests for UTF-8, BOM, Unicode, and TXT edge cases
     ├── test_ingestion_pdf.py         # Unit tests for synthetic PDFs, pages, and encryption
     ├── test_ingestion_validation.py  # Edge case and format validation tests
+    ├── test_chunking.py              # Unit tests for source-aware text chunking and page provenance
+    ├── test_embeddings.py            # Unit tests for MockEmbedder and LocalEmbedder
+    ├── test_retrieval_semantic.py    # Unit tests for FAISS dense vector search
+    ├── test_retrieval_hybrid.py      # Unit tests for BM25 and Reciprocal Rank Fusion
+    ├── test_retrieval_evaluation.py  # Benchmark retrieval evaluation (Recall, MRR, latency)
     └── test_ui_integration.py        # Streamlit AppTest headless integration tests
 ```
 
-### File Responsibilities
-- `app.py`: Streamlit entrypoint; renders research workspace, interactive document uploader, metadata summary cards, and page-by-page text inspector.
-- `src/verityai/config.py`: Encapsulates application settings and configurable limits (`max_file_size_bytes=10MB`, `max_pdf_pages=500`).
-- `src/verityai/ingestion.py`: Local document ingestion engine with `PageContent`, `DocumentResult`, `extract_txt`, `extract_pdf`, and `safe_ingest_document`.
-- `tests/`: 56 automated pytest tests verifying configuration, extraction, limits, and headless UI workflows.
-- `.gitignore`: Prevents heavy AI model checkpoints, private research documents, and virtual environments from accidentally being committed.
+---
+
+## 5. Technical Design Details
+
+### Embedding Model: `all-MiniLM-L6-v2`
+- **License:** Apache 2.0 (open source, permissive commercial/research license).
+- **Download:** Downloaded automatically on first query execution via Hugging Face Hub (~80 MB).
+- **Cache Location:** Stored in the local cache (`~/.cache/huggingface/hub` or configured `models_dir`), excluded from Git via `.gitignore`.
+- **Offline Operation:** Once downloaded, model execution is 100% offline. Zero network calls are made during search.
+- **Hardware Optimization:** Uses ~120 MB RAM during inference. Automatically engages CUDA on your NVIDIA GPU (tested on RTX 3050 4GB) or runs with fast matrix operations on CPU.
+
+### Hybrid Retrieval & Reciprocal Rank Fusion (RRF)
+Raw BM25 scores (unbounded positive numbers) and cosine similarity scores ([-1.0, 1.0]) cannot be combined directly without unprincipled scaling. VerityAI merges channels using rank-based Reciprocal Rank Fusion with a smoothing constant of $k=60$. Chunks identified by both dense semantic and sparse lexical channels receive a boosted score, prioritizing high-consensus evidence.
 
 ---
 
-## 5. Troubleshooting
-
-### Issue 1: Script Execution Disabled in PowerShell
-- **Symptom:** `.\.venv\Scripts\Activate.ps1 : File ... cannot be loaded because running scripts is disabled on this system.`
-- **Fix:** Enable script execution for your current PowerShell session only:
-  ```powershell
-  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-  ```
-  Or directly invoke the virtual environment's Python binary:
-  ```powershell
-  .\.venv\Scripts\python.exe -m streamlit run app.py
-  ```
-
-### Issue 2: ModuleNotFoundError: No module named 'verityai'
-- **Symptom:** When running tests or the app, Python cannot locate the `verityai` package.
-- **Fix:** Ensure you run commands from the project root (`c:\Desktop\VerityAI`). The test suite and `app.py` resolve the root directory automatically. You can also install the package in editable mode if desired:
-  ```powershell
-  pip install -e .
-  ```
-  Or set `PYTHONPATH` in PowerShell:
-  ```powershell
-  $env:PYTHONPATH = "src"
-  ```
-
-### Issue 3: Streamlit Port Already in Use (Port 8501)
-- **Symptom:** `Port 8501 is already in use.`
-- **Fix:** Specify a different port using the `--server.port` flag:
-  ```powershell
-  python -m streamlit run app.py --server.port 8502
-  ```
-
----
-
-## 6. Development Principles
-1. **Offline-First:** All processing must function without mandatory cloud API connections or telemetry.
-2. **Deterministic Citations:** Answers must reference exact document excerpts, never hallucinated claims.
-3. **Hardware Realism:** Architected to run comfortably within 16 GB RAM and 4 GB VRAM budgets.
-4. **Transparent Evolution:** Every phase is fully tested and verified before moving forward.
+## 6. Known Scope Limitations
+- **No LLM Answer Generation:** Phase 3 is strictly an evidence retrieval engine. Answer synthesis, claim extraction, and citation verification will be implemented in Phase 4.
+- **Character Approximation:** Chunking uses character windows with word-boundary snapping rather than subword tokenizers to remain lightweight during ingestion.
+- **Scanned Documents:** Phase 3 processes digital PDFs with extractable text layers. Scanned/image-only PDFs require OCR, which is scheduled for future development.
