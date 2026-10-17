@@ -7,6 +7,13 @@ __app_name__ = "VerityAI"
 __version__ = "0.2.0"
 __phase__ = "Phase 2: Local Document Ingestion"
 
+from verityai.chunking import (
+    ChunkMetadata,
+    DocumentChunk,
+    chunk_document,
+    generate_doc_id,
+    split_text_into_chunks,
+)
 from verityai.config import AppConfig, get_config
 from verityai.ingestion import (
     CorruptedFileError,
@@ -33,6 +40,11 @@ __all__ = [
     "get_config",
     "DocumentResult",
     "PageContent",
+    "ChunkMetadata",
+    "DocumentChunk",
+    "chunk_document",
+    "split_text_into_chunks",
+    "generate_doc_id",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",
