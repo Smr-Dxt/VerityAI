@@ -11,3 +11,11 @@ pytest>=8.2.0
 
 # Document Processing (PDF extraction)
 pymupdf>=1.24.0
+
+# ==============================================================================
+# VerityAI - Phase 3 Dependencies
+# Embeddings and vector retrieval
+# ==============================================================================
+
+# Local Embeddings (Apache 2.0, CPU/GPU compatible, ~80MB footprint)
+sentence-transformers>=3.0.0

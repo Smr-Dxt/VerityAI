@@ -15,6 +15,7 @@ from verityai.chunking import (
     split_text_into_chunks,
 )
 from verityai.config import AppConfig, get_config
+from verityai.embeddings import BaseEmbedder, LocalEmbedder, MockEmbedder
 from verityai.ingestion import (
     CorruptedFileError,
     DocumentResult,
@@ -45,6 +46,9 @@ __all__ = [
     "chunk_document",
     "split_text_into_chunks",
     "generate_doc_id",
+    "BaseEmbedder",
+    "LocalEmbedder",
+    "MockEmbedder",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",
