@@ -33,8 +33,8 @@ class AppConfig:
     """
 
     app_name: str = "VerityAI"
-    version: str = "0.2.0"
-    phase: str = "Phase 2: Local Document Ingestion"
+    version: str = "0.3.0"
+    phase: str = "Phase 3: Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval"
     tagline: str = "Research with evidence, not guesses."
     environment: str = "development"
     host: str = "localhost"
@@ -106,8 +106,8 @@ def get_config() -> AppConfig:
 
     return AppConfig(
         app_name=app_name,
-        version="0.2.0",
-        phase="Phase 2: Local Document Ingestion",
+        version="0.3.0",
+        phase="Phase 3: Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval",
         tagline="Research with evidence, not guesses.",
         environment=environment,
         host=host,

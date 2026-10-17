@@ -142,3 +142,77 @@ def test_research_workspace_reflects_active_document():
     markdown_content = " ".join(m.value for m in at.markdown)
     assert "notes.txt" in markdown_content
     assert "Active Ingested Document" in markdown_content
+
+
+def test_research_workspace_query_retrieval_flow(monkeypatch):
+    """Verify that entering a query renders retrieved evidence cards with metadata."""
+    monkeypatch.setenv("VERITY_TEST_MODE", "1")
+    at = AppTest.from_file(APP_PATH, default_timeout=15.0)
+    at.run()
+
+    mock_doc = DocumentResult(
+        filename="transformer_study.pdf",
+        doc_type="pdf",
+        total_pages=1,
+        extracted_text="Multi-head attention mechanism accelerates transformer training.",
+        pages=[
+            PageContent(
+                page_number=1,
+                text="Multi-head attention mechanism accelerates transformer training.",
+                char_count=63,
+            )
+        ],
+        char_count=63,
+        status="success",
+    )
+    at.session_state["active_document"] = mock_doc
+    at.sidebar.radio[0].set_value("Research Workspace").run()
+
+    # Enter a query into the evidence search input
+    assert len(at.text_input) >= 1
+    query_input = at.text_input[0]
+    query_input.set_value("attention mechanism").run()
+
+    assert not at.exception
+    markdown_content = " ".join(m.value for m in at.markdown)
+    assert "Retrieved Evidence Passages" in markdown_content
+    assert "transformer_study.pdf" in markdown_content
+    assert "Rank #1" in markdown_content
+    assert "Page 1" in markdown_content
+    assert "Consensus Score (RRF)" in markdown_content
+
+
+def test_research_workspace_empty_result_message():
+    """Verify that when retrieval returns 0 matches, an explicit empty-result message is displayed."""
+    from unittest.mock import MagicMock
+
+    at = AppTest.from_file(APP_PATH, default_timeout=15.0)
+    at.run()
+
+    mock_doc = DocumentResult(
+        filename="notes.txt",
+        doc_type="txt",
+        total_pages=1,
+        extracted_text="Quantum teleportation experiment notes.",
+        pages=[PageContent(page_number=1, text="Quantum teleportation experiment notes.", char_count=39)],
+        char_count=39,
+        status="success",
+    )
+    # Configure retriever returning empty results
+    mock_retriever = MagicMock()
+    mock_retriever.num_indexed = 1
+    mock_retriever.retrieve.return_value = []
+
+    at.session_state["active_document"] = mock_doc
+    at.session_state["hybrid_retriever"] = mock_retriever
+    at.session_state["retriever_doc_key"] = f"{mock_doc.filename}:{mock_doc.total_pages}:{mock_doc.char_count}"
+    at.sidebar.radio[0].set_value("Research Workspace").run()
+
+    query_input = at.text_input[0]
+    query_input.set_value("unmatched query").run()
+
+    assert not at.exception
+    assert len(at.info) >= 1
+    assert "No relevant passages found matching" in at.info[0].value
+
+

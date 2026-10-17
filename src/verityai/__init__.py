@@ -1,11 +1,11 @@
 """
 VerityAI - Offline-First Agentic Research Assistant
-Phase 2: Local Document Ingestion
+Phase 3: Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval
 """
 
 __app_name__ = "VerityAI"
-__version__ = "0.2.0"
-__phase__ = "Phase 2: Local Document Ingestion"
+__version__ = "0.3.0"
+__phase__ = "Phase 3: Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval"
 
 from verityai.chunking import (
     ChunkMetadata,

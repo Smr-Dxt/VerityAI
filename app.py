@@ -3,6 +3,7 @@ VerityAI - Research Workbench Application
 Evidence-based, offline-first research assistant.
 """
 
+import os
 import sys
 from pathlib import Path
 import streamlit as st
@@ -15,6 +16,48 @@ if str(SRC_PATH) not in sys.path:
 
 from verityai.config import get_config
 from verityai.ingestion import DocumentResult, safe_ingest_document
+from verityai.chunking import chunk_document, DocumentChunk
+from verityai.embeddings import BaseEmbedder, LocalEmbedder, MockEmbedder
+from verityai.retrieval_semantic import FAISSRetriever
+from verityai.retrieval_hybrid import BM25Retriever, HybridRetriever, HybridRetrievalResult
+from typing import Optional
+
+
+@st.cache_resource
+def get_app_embedder() -> BaseEmbedder:
+    """Provides singleton embedding instance (MockEmbedder in test mode, LocalEmbedder in production)."""
+    if os.getenv("VERITY_TEST_MODE") == "1" or os.getenv("VERITY_USE_MOCK_EMBEDDER") == "1":
+        return MockEmbedder(dimension=64)
+    return LocalEmbedder()
+
+
+def get_or_create_hybrid_retriever(active_doc: DocumentResult) -> Optional[HybridRetriever]:
+    """Retrieves or builds the in-memory hybrid retriever for the active document."""
+    doc_key = f"{active_doc.filename}:{active_doc.total_pages}:{active_doc.char_count}"
+    if (
+        st.session_state.get("hybrid_retriever") is not None
+        and st.session_state.get("retriever_doc_key") == doc_key
+    ):
+        return st.session_state["hybrid_retriever"]
+
+    chunks = chunk_document(active_doc)
+    if not chunks:
+        return None
+
+    embedder = get_app_embedder()
+    sem_retriever = FAISSRetriever(embedder=embedder)
+    bm25_retriever = BM25Retriever()
+    hybrid = HybridRetriever(
+        semantic_retriever=sem_retriever,
+        bm25_retriever=bm25_retriever,
+        rrf_k=60,
+    )
+    hybrid.index_chunks(chunks)
+
+    st.session_state["hybrid_retriever"] = hybrid
+    st.session_state["active_chunks"] = chunks
+    st.session_state["retriever_doc_key"] = doc_key
+    return hybrid
 
 
 def inject_custom_styles() -> None:
@@ -258,15 +301,90 @@ def render_research_workspace(config) -> None:
         )
 
     # Evidence Query Area
-    st.markdown('<div class="section-header">Evidence Query</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Evidence Retrieval</div>', unsafe_allow_html=True)
 
-    st.text_input(
-        "Enter a research question across your documents:",
-        placeholder="e.g., What are the documented tradeoffs between quantized attention heads?",
-        disabled=True,
-        help="Evidence retrieval and query execution will be enabled in Phase 3 (Local Vector Indexing).",
-    )
-    st.caption("Evidence query execution is planned for Phase 3 once vector indexing is active.")
+    if active_doc is not None and active_doc.status == "success":
+        st.caption(
+            "Query the active document using hybrid retrieval (FAISS semantic vectors + BM25 keyword matching fused via RRF)."
+        )
+
+        query = st.text_input(
+            "Enter a research query across your document:",
+            placeholder="e.g., What are the documented tradeoffs between quantized attention heads?",
+            key="evidence_query_input",
+            help="Queries are executed offline against in-memory FAISS and BM25 indices.",
+        )
+
+        col_btn, col_k = st.columns([4, 1])
+        with col_btn:
+            search_submitted = st.button("Retrieve Evidence", key="btn_search_evidence", type="primary")
+        with col_k:
+            top_k = st.selectbox("Top Passages:", options=[3, 5, 10], index=0, key="select_top_k")
+
+        # Execute search if query provided and button clicked or enter pressed
+        if query.strip():
+            with st.spinner("Executing hybrid retrieval..."):
+                retriever = get_or_create_hybrid_retriever(active_doc)
+
+            if retriever is None or retriever.num_indexed == 0:
+                st.warning("No searchable text chunks could be extracted from this document.")
+            else:
+                results = retriever.retrieve(query.strip(), top_k=top_k)
+
+                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                if results:
+                    st.markdown(
+                        f'<div class="section-header">Retrieved Evidence Passages ({len(results)} matches)</div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(
+                        "Passages ranked by Reciprocal Rank Fusion (RRF). Scores represent positional consensus "
+                        "between BM25 lexical and FAISS semantic search, not a probability."
+                    )
+
+                    for res in results:
+                        page_label = (
+                            f"Page {res.chunk.metadata.page_number}"
+                            if res.chunk.metadata.page_number is not None
+                            else "Text Document"
+                        )
+                        sem_rank_str = f"#{res.semantic_rank}" if res.semantic_rank is not None else "—"
+                        kw_rank_str = f"#{res.keyword_rank}" if res.keyword_rank is not None else "—"
+
+                        st.markdown(
+                            f"""
+                            <div class="verity-card">
+                                <div class="verity-card-header">
+                                    <span>Rank #{res.rank} — {res.chunk.metadata.filename}</span>
+                                    <span class="verity-badge"><span class="verity-badge-dot"></span> {page_label}</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-label">Consensus Score (RRF):</span>
+                                    <span class="spec-value">{res.rrf_score:.4f}</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-label">Channel Ranks:</span>
+                                    <span class="spec-value">Semantic {sem_rank_str} | Keyword {kw_rank_str}</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-label">Chunk ID:</span>
+                                    <span class="spec-value">{res.chunk.metadata.chunk_id}</span>
+                                </div>
+                                <div style="margin-top: 0.85rem; padding: 0.85rem 1rem; background-color: #0B1120; border-radius: 4px; border: 1px solid #1E293B; font-size: 0.9rem; line-height: 1.6; color: #E2E8F0; white-space: pre-wrap;">{res.chunk.text}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.info(f"No relevant passages found matching '{query.strip()}'. Try different keywords or broader phrasing.")
+    else:
+        st.text_input(
+            "Enter a research question across your documents:",
+            placeholder="e.g., What are the documented tradeoffs between quantized attention heads?",
+            disabled=True,
+            help="Upload a technical document in the Documents tab to enable evidence retrieval.",
+        )
+        st.caption("Upload a technical paper or plain-text notes in the Documents tab to enable evidence retrieval.")
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
@@ -394,8 +512,8 @@ def render_documents_view(config) -> None:
                     <div class="verity-card">
                         <div class="verity-card-header"><span>Pipeline Status</span></div>
                         <div class="verity-card-body">
-                            Document text and page boundaries are held in memory.
-                            Embedding generation and vector indexing will be available in Phase 3.
+                            Document text is chunked and indexed into in-memory FAISS dense vector and BM25 lexical stores.
+                            Evidence retrieval is active in the Research Workspace.
                         </div>
                     </div>
                     """,
@@ -404,6 +522,9 @@ def render_documents_view(config) -> None:
                 if st.button("Reset / Ingest New Document", key="btn_reset_doc"):
                     st.session_state["active_document"] = None
                     st.session_state["active_doc_filename"] = None
+                    st.session_state["hybrid_retriever"] = None
+                    st.session_state["active_chunks"] = None
+                    st.session_state["retriever_doc_key"] = None
                     st.rerun()
 
             # Extracted Text Inspector

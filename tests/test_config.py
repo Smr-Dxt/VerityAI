@@ -24,8 +24,8 @@ def test_default_config():
     """Verify default configuration values."""
     config = get_config()
     assert config.app_name == "VerityAI"
-    assert config.version == "0.2.0"
-    assert config.phase == "Phase 2: Local Document Ingestion"
+    assert config.version == "0.3.0"
+    assert config.phase == "Phase 3: Source-Aware Chunking, Local Embeddings, and Hybrid Retrieval"
     assert config.host == "localhost"
     assert config.port == 8501
     assert config.offline_mode is True
