@@ -19,3 +19,7 @@ pymupdf>=1.24.0
 
 # Local Embeddings (Apache 2.0, CPU/GPU compatible, ~80MB footprint)
 sentence-transformers>=3.0.0
+
+# Vector Similarity Search (In-memory dense indexing)
+faiss-cpu>=1.8.0
+
