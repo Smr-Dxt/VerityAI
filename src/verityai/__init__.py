@@ -16,6 +16,14 @@ from verityai.chunking import (
 )
 from verityai.config import AppConfig, get_config
 from verityai.embeddings import BaseEmbedder, LocalEmbedder, MockEmbedder
+from verityai.evidence import (
+    Citation,
+    CitationReference,
+    EvidencePassage,
+    VerificationOutcome,
+    VerificationResult,
+    VerificationStatus,
+)
 from verityai.retrieval_hybrid import BM25Retriever, HybridRetrievalResult, HybridRetriever
 from verityai.retrieval_semantic import FAISSRetriever, RetrievalResult
 from verityai.ingestion import (
@@ -56,6 +64,12 @@ __all__ = [
     "BM25Retriever",
     "HybridRetriever",
     "HybridRetrievalResult",
+    "EvidencePassage",
+    "CitationReference",
+    "Citation",
+    "VerificationStatus",
+    "VerificationOutcome",
+    "VerificationResult",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",
@@ -69,3 +83,4 @@ __all__ = [
     "ingest_document",
     "safe_ingest_document",
 ]
+
