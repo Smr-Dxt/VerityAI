@@ -14,6 +14,14 @@ from verityai.chunking import (
     generate_doc_id,
     split_text_into_chunks,
 )
+from verityai.citation_validator import (
+    CitationErrorCode,
+    CitationValidationReport,
+    CitationValidationResult,
+    CitationValidator,
+    validate_citation,
+    validate_citations,
+)
 from verityai.config import AppConfig, get_config
 from verityai.embeddings import BaseEmbedder, LocalEmbedder, MockEmbedder
 from verityai.evidence import (
@@ -70,6 +78,12 @@ __all__ = [
     "VerificationStatus",
     "VerificationOutcome",
     "VerificationResult",
+    "CitationErrorCode",
+    "CitationValidationResult",
+    "CitationValidationReport",
+    "CitationValidator",
+    "validate_citation",
+    "validate_citations",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",
@@ -83,4 +97,5 @@ __all__ = [
     "ingest_document",
     "safe_ingest_document",
 ]
+
 
