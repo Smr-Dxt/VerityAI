@@ -38,6 +38,8 @@ class VerificationStatus(str, Enum):
     CONTRADICTED = "contradicted"
     PARTIALLY_SUPPORTED = "partially_supported"
     UNVERIFIED = "unverified"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    UNVERIFIABLE = "unverifiable"
 
     def __str__(self) -> str:
         return self.value
@@ -315,10 +317,7 @@ class VerificationOutcome:
 
     def __post_init__(self) -> None:
         """Validates and standardizes verification outcome fields."""
-        if not isinstance(self.claim, str) or not self.claim.strip():
-            raise ValueError("claim must be a non-empty string.")
-
-        # Handle string status conversion
+        # Handle string status conversion first so status is known
         if isinstance(self.status, str):
             try:
                 object.__setattr__(self, "status", VerificationStatus(self.status.lower()))
@@ -331,6 +330,12 @@ class VerificationOutcome:
             raise TypeError(
                 f"status must be a VerificationStatus or str, got {type(self.status).__name__}"
             )
+
+        # Allow empty or whitespace claim only when status is UNVERIFIABLE
+        if not isinstance(self.claim, str) or (
+            not self.claim.strip() and self.status != VerificationStatus.UNVERIFIABLE
+        ):
+            raise ValueError("claim must be a non-empty string.")
 
         if self.confidence is not None:
             if isinstance(self.confidence, bool) or not isinstance(self.confidence, (int, float)):
@@ -378,7 +383,24 @@ class VerificationOutcome:
     @property
     def is_unverified(self) -> bool:
         """Returns True if evidence is insufficient to verify the claim."""
-        return self.status == VerificationStatus.UNVERIFIED
+        return self.status in (
+            VerificationStatus.UNVERIFIED,
+            VerificationStatus.INSUFFICIENT_EVIDENCE,
+            VerificationStatus.UNVERIFIABLE,
+        )
+
+    @property
+    def is_insufficient_evidence(self) -> bool:
+        """Returns True if available evidence does not establish whether the claim is true."""
+        return self.status in (
+            VerificationStatus.INSUFFICIENT_EVIDENCE,
+            VerificationStatus.UNVERIFIED,
+        )
+
+    @property
+    def is_unverifiable(self) -> bool:
+        """Returns True if verification could not be completed due to invalid input or limitations."""
+        return self.status == VerificationStatus.UNVERIFIABLE
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the verification outcome to a dictionary."""
@@ -393,6 +415,8 @@ class VerificationOutcome:
             "is_verified": self.is_verified,
             "is_contradicted": self.is_contradicted,
             "is_unverified": self.is_unverified,
+            "is_insufficient_evidence": self.is_insufficient_evidence,
+            "is_unverifiable": self.is_unverifiable,
         }
 
 

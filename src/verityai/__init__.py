@@ -32,6 +32,11 @@ from verityai.evidence import (
     VerificationResult,
     VerificationStatus,
 )
+from verityai.verifier import (
+    BaseClaimVerifier,
+    DeterministicClaimVerifier,
+    verify_claim,
+)
 from verityai.retrieval_hybrid import BM25Retriever, HybridRetrievalResult, HybridRetriever
 from verityai.retrieval_semantic import FAISSRetriever, RetrievalResult
 from verityai.ingestion import (
@@ -84,6 +89,9 @@ __all__ = [
     "CitationValidator",
     "validate_citation",
     "validate_citations",
+    "BaseClaimVerifier",
+    "DeterministicClaimVerifier",
+    "verify_claim",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",

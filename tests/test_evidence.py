@@ -363,6 +363,8 @@ class TestVerificationOutcome:
             (VerificationStatus.CONTRADICTED, False, True, False),
             (VerificationStatus.PARTIALLY_SUPPORTED, False, False, False),
             (VerificationStatus.UNVERIFIED, False, False, True),
+            (VerificationStatus.INSUFFICIENT_EVIDENCE, False, False, True),
+            (VerificationStatus.UNVERIFIABLE, False, False, True),
         ],
     )
     def test_verification_statuses_and_properties(
@@ -383,6 +385,24 @@ class TestVerificationOutcome:
         assert outcome.is_verified is is_ver
         assert outcome.is_contradicted is is_contra
         assert outcome.is_unverified is is_unver
+
+    def test_insufficient_evidence_and_unverifiable_specific_properties(self) -> None:
+        """Verifies is_insufficient_evidence and is_unverifiable properties."""
+        outcome_insuff = VerificationOutcome(
+            claim="Factual claim.",
+            status=VerificationStatus.INSUFFICIENT_EVIDENCE,
+        )
+        assert outcome_insuff.is_insufficient_evidence is True
+        assert outcome_insuff.is_unverifiable is False
+        assert outcome_insuff.is_unverified is True
+
+        outcome_unver = VerificationOutcome(
+            claim="",
+            status=VerificationStatus.UNVERIFIABLE,
+        )
+        assert outcome_unver.is_unverifiable is True
+        assert outcome_unver.is_insufficient_evidence is False
+        assert outcome_unver.is_unverified is True
 
     def test_verification_result_alias(self) -> None:
         """Verifies VerificationResult is an alias for VerificationOutcome."""
