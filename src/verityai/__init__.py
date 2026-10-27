@@ -37,6 +37,15 @@ from verityai.verifier import (
     DeterministicClaimVerifier,
     verify_claim,
 )
+from verityai.contradiction import (
+    BaseContradictionDetector,
+    ContradictionReasonCode,
+    ContradictionReport,
+    ContradictionStatus,
+    CrossDocumentConflict,
+    DeterministicContradictionDetector,
+    detect_cross_document_contradictions,
+)
 from verityai.retrieval_hybrid import BM25Retriever, HybridRetrievalResult, HybridRetriever
 from verityai.retrieval_semantic import FAISSRetriever, RetrievalResult
 from verityai.ingestion import (
@@ -92,6 +101,13 @@ __all__ = [
     "BaseClaimVerifier",
     "DeterministicClaimVerifier",
     "verify_claim",
+    "ContradictionStatus",
+    "ContradictionReasonCode",
+    "CrossDocumentConflict",
+    "ContradictionReport",
+    "BaseContradictionDetector",
+    "DeterministicContradictionDetector",
+    "detect_cross_document_contradictions",
     "IngestionError",
     "UnsupportedFileTypeError",
     "FileSizeLimitExceededError",
